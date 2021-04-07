@@ -64,6 +64,98 @@
 (defvar iso-639 (eval (car (read-from-string (f-read (f-join cml-dir "iso639.sexp")))))
   "An alist of iso-639-2 language codes and their corresponding English name.")
 
+
+
+(defun cme-query-metadata (id)
+  (let* ((tags-query (format "SELECT group_concat(DISTINCT tags.name) \
+FROM books_tags_link
+LEFT JOIN tags ON books_tags_link.tag = tags.id
+WHERE books_tags_link.book = %s
+GROUP BY books_tags_link.book" id))
+         (tags (s-split "," (s-replace "" "" (calibredb-query tags-query))))
+
+         (title-query (format "SELECT title,sort FROM books where id = %s" id))
+         (title+sort (s-split "" (s-replace "" "" (calibredb-query title-query))))
+         (title (car title+sort))
+         (title-sort (cadr title+sort))
+
+         (author-id-query (format "SELECT author FROM books_authors_link WHERE book = %s" id))
+         (author-id (s-replace "" "" (calibredb-query author-id-query)))
+
+         (author-query (format "SELECT name,sort FROM authors WHERE id = %s" author-id))
+         (author+sort (if (string= author-id "")
+                          '("Unknown Unknown")
+                          (s-split "" (s-replace "" "" (calibredb-query author-query)))))
+         (author (car author+sort))
+         (author-sort (cadr author+sort))
+
+         (series-id-query (format "SELECT series FROM books_series_link WHERE book = %s" id))
+         (series-id (s-replace "" "" (calibredb-query series-id-query)))
+
+         (series-query (format "SELECT name,sort FROM series WHERE id = %s" series-id))
+         (series+sort (if (string= series-id "")
+                          '("" "")
+                        (s-split "" (s-replace "" "" (calibredb-query series-query)))))
+         (series (car series+sort))
+
+         (series-index-query (format "SELECT series_index FROM books where id = %s" id))
+         (series-index (s-replace "" "" (calibredb-query series-index-query)))
+
+         (pubdate-query (format "SELECT pubdate FROM books where id = %s" id))
+         (pubdate (s-replace "" "" (calibredb-query pubdate-query)))
+
+         (description-query (format "SELECT text FROM comments where book = %s" id))
+         (description (s-replace "" "" (calibredb-query description-query)))
+
+         (identifiers-query (format "SELECT type,val FROM identifiers where book = %s" id))
+         (identifiers-unform (--map
+                              (destructuring-bind (type val) (s-split "" it)
+                                (list (make-symbol (concat ":" type)) val))
+                              (s-split "" (calibredb-query identifiers-query) t)))
+         (identifiers (-flatten identifiers-unform))
+
+         (language-id-query (format "SELECT lang_code FROM books_languages_link WHERE book = %s" id))
+         (language-id (s-replace "" "" (calibredb-query language-id-query)))
+
+         (language-query (format "SELECT lang_code FROM languages WHERE id = %s" language-id))
+         (language (if (string= language-id "")
+                       ""
+                     (s-replace "" "" (calibredb-query language-query))))
+
+         (publisher-id-query (format "SELECT publisher FROM books_publishers_link WHERE book = %s" id))
+         (publisher-id (s-replace "" "" (calibredb-query publisher-id-query)))
+
+         (publisher-query (format "SELECT name FROM publishers WHERE id = %s" publisher-id))
+         (publisher (if (string= publisher-id "")
+                        "Unknown"
+                      (s-replace "" "" (calibredb-query publisher-query))))
+
+         (rating-id-query (format "SELECT rating FROM books_ratings_link WHERE book = %s" id))
+         (rating-id (s-replace "" "" (calibredb-query rating-id-query)))
+
+         (rating-query (format "SELECT rating FROM ratings WHERE id = %s" rating-id))
+         (rating (if (string= rating-id "")
+                     ""
+                     (s-replace "" "" (calibredb-query rating-query))))
+         )
+    (make-calibre-metadata :author author
+                           :author_sort author-sort
+                           :creator "KILL"
+                           :date pubdate
+                           :description description
+                           :id id
+                           :identifier identifiers
+                           :language language
+                           :publisher publisher
+                           :rating rating
+                           :series series
+                           :series_index series-index
+                           :tag tags
+                           :timestamp "KILL"
+                           :title title
+                           :title_sort title-sort)
+    ))
+
 (defun cme-pick-book ()
   (interactive)
   (let* ((books (--map
@@ -73,8 +165,8 @@
                   (s-split ""
                            (calibredb-query "SELECT id,title,author_sort FROM books")))))
         (selected (cadr (s-match "^\\([0-9]+\\):.*"  (completing-read "Select Book: " books nil t)))))
-    (setq calibre-metadata-edit-metadata (load-cml (string-to-number selected)))
-    (calibre-metadata-edit/body)))
+    (setq cme-metadata (cme-query-metadata (string-to-number selected)))
+    (cme-hydra/body)))
 
 (defun load-cml (id)
   "Load a 'cml' file with name ID as a `calibre-metadata' struct."
