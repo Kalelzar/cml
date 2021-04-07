@@ -34,7 +34,7 @@ hasn't changed."
   (if (= (car cme--frame-long-cache) (frame-width))
       (cdr cme--frame-long-cache)
     (cdr (setq cme--frame-long-cache
-               (cons (frame-width) . (s-repeat (- (frame-width) 17) "━"))))))
+               `(,(frame-width) . ,(s-repeat (- (frame-width) 17) "━"))))))
 
 (defun cme-make-menu (&rest elements)
   "Generate a menu-like thing from ELEMENTS.
