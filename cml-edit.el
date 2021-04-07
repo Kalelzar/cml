@@ -182,7 +182,7 @@ Don't prompt for updating the author if NO-PROMPT is non-nil."
   "Edit the rating of the current book."
   (setf (calibre-metadata-rating cme-metadata)
         (completing-read "New Rating: "
-                         (-map #'number-to-string (cl-loop for i from 10 downto 1 collect i))
+                         (-map #'number-to-string (cl-loop for i from 10 downto 0 collect i))
                          #'identity
                          t)))
 
